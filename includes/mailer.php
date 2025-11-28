@@ -1,44 +1,44 @@
 <?php
-// Cargar clases de PHPMailer usando rutas absolutas
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// EL CAMBIO ESTÁ AQUÍ ABAJO: Agregamos __DIR__ . '/' antes de la ruta
-require __DIR__ . '/PHPMailer/src/Exception.php';
-require __DIR__ . '/PHPMailer/src/PHPMailer.php';
-require __DIR__ . '/PHPMailer/src/SMTP.php';
+require_once __DIR__ . '/PHPMailer/src/Exception.php';
+require_once __DIR__ . '/PHPMailer/src/PHPMailer.php';
+require_once __DIR__ . '/PHPMailer/src/SMTP.php';
 
-function enviarNotificacion($destinatario, $nombre_destinatario, $asunto, $mensajeHTML) {
+function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF = null, $nombrePDF = 'Documento.pdf') {
     $mail = new PHPMailer(true);
 
     try {
-        // Configuración del Servidor SMTP de Gmail
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'brayan.mh1087@gmail.com'; // <--- REVISA QUE ESTO ESTÉ CON TUS DATOS
-        $mail->Password   = 'dcmc alym lyuz zici'; // <--- REVISA QUE ESTO ESTÉ CON TUS DATOS
+        $mail->Username   = 'brayan.mh1087@gmail.com'; 
+        $mail->Password   = 'dcmc alym lyuz zici';     
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
-        // Configuración del Remitente y Destinatario
-        $mail->setFrom('brayan.mh1087@gmail.com', 'Hotel Fiorella - Notificaciones');
-        $mail->addAddress($destinatario, $nombre_destinatario);
-        $mail->addBCC('brayan.mh1087@gmail.com'); 
+        $mail->setFrom('brayan.mh1087@gmail.com', 'Hotel Fiorella'); 
+        $mail->addAddress($destinatario, $nombre);
+        
+        // --- AQUÍ EL CAMBIO PARA QUE TE LLEGUE A TI ---
+        // Usamos el alias +admin o tu correo de hotmail
+        $mail->addBCC('hotelfiorella@hotmail.com');
 
-        // Contenido
+        if ($adjuntoPDF !== null) {
+            $mail->addStringAttachment($adjuntoPDF, $nombrePDF, 'base64', 'application/pdf');
+        }
+
         $mail->isHTML(true);
         $mail->Subject = $asunto;
-        $mail->Body    = $mensajeHTML;
-        $mail->AltBody = strip_tags($mensajeHTML);
+        $mail->Body    = $cuerpoHTML;
+        $mail->AltBody = strip_tags($cuerpoHTML);
         $mail->CharSet = 'UTF-8';
 
         $mail->send();
         return true;
     } catch (Exception $e) {
-        // IMPORTANTE: Si falla el correo, lo guardamos en el log de errores de PHP
-        // pero NO detenemos la ejecución de la web.
-        error_log("Error PHPMailer: " . $mail->ErrorInfo);
+        error_log("Mailer Error: " . $mail->ErrorInfo);
         return false;
     }
 }

@@ -1,17 +1,19 @@
 <?php
+// =========================================================
+// LÓGICA DE PROCESAMIENTO (Se ejecuta al dar clic en Confirmar)
+// =========================================================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-// 1. Incluimos la base de datos y el Mailer
 include('includes/db.php');
-include('includes/mailer.php'); // <--- IMPORTANTE: Asegúrate que esta ruta sea correcta
+// Incluimos el GESTOR que maneja los correos y PDFs
+include('includes/gestor_notificaciones.php');
 
-// --- LÓGICA DE PROCESAMIENTO FINAL ---
+// AQUÍ ESTÁ LA CLAVE: Verificamos si se envió la señal 'final_confirm'
 if (isset($_POST['final_confirm']) && $_POST['final_confirm'] == '1') {
     
     if (!isset($_SESSION['usuario_id']) || !isset($_SESSION['cliente_id'])) {
-        header('Location: login.php');
-        exit();
+        header('Location: login.php'); exit();
     }
 
     $cliente_id = $_SESSION['cliente_id'];
@@ -24,175 +26,126 @@ if (isset($_POST['final_confirm']) && $_POST['final_confirm'] == '1') {
     try {
         $pdo->beginTransaction();
 
-        // 1. Verificamos el tipo de cliente
-        $stmt_cliente_tipo = $pdo->prepare("SELECT PersonaID FROM Clientes WHERE ClienteID = ?");
-        $stmt_cliente_tipo->execute([$cliente_id]);
-        $es_persona = $stmt_cliente_tipo->fetchColumn();
+        // 1. Determinar si es Boleta o Factura
+        $stmt = $pdo->prepare("SELECT PersonaID FROM Clientes WHERE ClienteID = ?");
+        $stmt->execute([$cliente_id]);
+        $es_persona = $stmt->fetchColumn();
+        $tipo_documento = $es_persona ? 'B' : 'F';
 
-        // 2. Asignamos documento
-        $tipo_documento = $es_persona ? 'B' : 'F'; 
-
-        // 3. Insertamos Reserva
-        $sql_reserva = "INSERT INTO Reservas (ClienteID, UsuarioID, HabitacionID, FechaEntrada, FechaSalida, MetodoPagoID, TipoDocumento, Estado) VALUES (?, ?, ?, ?, ?, ?, ?, '1')";
-        $stmt_reserva = $pdo->prepare($sql_reserva);
-        $stmt_reserva->execute([$cliente_id, $usuario_id, $habitacion_id, $fecha_entrada, $fecha_salida, $metodo_pago_id, $tipo_documento]);
+        // 2. Insertar Reserva
+        $sql = "INSERT INTO Reservas (ClienteID, UsuarioID, HabitacionID, FechaEntrada, FechaSalida, MetodoPagoID, TipoDocumento, Estado) VALUES (?, ?, ?, ?, ?, ?, ?, '1')";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$cliente_id, $usuario_id, $habitacion_id, $fecha_entrada, $fecha_salida, $metodo_pago_id, $tipo_documento]);
         $reserva_id = $pdo->lastInsertId();
 
-        // 4. Datos Habitación y Precios
-        // OJO: Modifiqué la consulta para traer el nombre y numero de habitación para el correo
-        $stmt_hab = $pdo->prepare("SELECT h.PrecioPorNoche, h.NumeroHabitacion, th.N_TipoHabitacion 
-                                   FROM Habitaciones h 
-                                   JOIN TiposHabitacion th ON h.TipoHabitacionID = th.TipoHabitacionID 
-                                   WHERE h.HabitacionID = ?");
-        $stmt_hab->execute([$habitacion_id]);
-        $datos_hab = $stmt_hab->fetch();
-        
-        $precio_noche = $datos_hab['PrecioPorNoche'];
+        // 3. Calcular Totales
+        $stmt = $pdo->prepare("SELECT PrecioPorNoche FROM Habitaciones WHERE HabitacionID = ?");
+        $stmt->execute([$habitacion_id]);
+        $precio = $stmt->fetchColumn();
         $dias = (strtotime($fecha_salida) - strtotime($fecha_entrada)) / 86400;
-        $total = $precio_noche * $dias;
+        $total = $precio * $dias;
 
-        // 5. Insertamos Venta
-        $sql_venta = "INSERT INTO Venta (ReservaID, Total, Estado) VALUES (?, ?, '1')";
-        $pdo->prepare($sql_venta)->execute([$reserva_id, $total]);
+        // 4. Insertar Venta y Comprobante (Usando 4 dígitos para el número)
+        $pdo->prepare("INSERT INTO Venta (ReservaID, Total, Estado) VALUES (?, ?, '1')")->execute([$reserva_id, $total]);
         
-        // 6. Insertamos Comprobante
-        $numero_comprobante = str_pad($reserva_id, 4, '0', STR_PAD_LEFT);
-        $serie = ($tipo_documento == 'B') ? 'B001' : 'F001';
-        $tabla_comp = ($tipo_documento == 'B') ? 'Boleta' : 'Factura';
-
-        $sql_comprobante = "INSERT INTO $tabla_comp (ReservaID, Numero, Serie, Estado) VALUES (?, ?, ?, '1')";
-        $pdo->prepare($sql_comprobante)->execute([$reserva_id, $numero_comprobante, $serie]);
-
-        // 7. Obtenemos DATOS COMPLETOS del cliente para el correo
-        // Esta consulta une Cliente -> Persona O Empresa para tener todos los datos
-        $sql_datos_cliente = "
-            SELECT 
-                COALESCE(p.Correo, '') as Correo,
-                CASE WHEN p.PersonaID IS NOT NULL THEN CONCAT(p.Nombres, ' ', p.Ape_Paterno) ELSE e.Razon_Social END as Nombre,
-                CASE WHEN p.PersonaID IS NOT NULL THEN p.Doc_Identidad ELSE e.RUC END as Documento,
-                CASE WHEN p.PersonaID IS NOT NULL THEN p.Direccion ELSE e.Direccion END as Direccion
-            FROM Clientes c
-            LEFT JOIN Persona p ON c.PersonaID = p.PersonaID
-            LEFT JOIN Empresa e ON c.EmpresaID = e.EmpresaID
-            WHERE c.ClienteID = ?
-        ";
-        $stmt_c = $pdo->prepare($sql_datos_cliente);
-        $stmt_c->execute([$cliente_id]);
-        $info_cliente = $stmt_c->fetch();
-
-        $pdo->commit(); // Confirmamos la base de datos PRIMERO
-
-        // ==========================================================
-        //         AQUÍ VA EL ENVÍO DE CORREO (INCRUSTADO)
-        // ==========================================================
+        $tabla = ($es_persona) ? 'Boleta' : 'Factura';
+        $serie = ($es_persona) ? 'B001' : 'F001';
+        $numero = str_pad($reserva_id, 4, '0', STR_PAD_LEFT);
         
-        $titulo_doc = ($tipo_documento == 'B') ? "BOLETA DE VENTA ELECTRÓNICA" : "FACTURA ELECTRÓNICA";
-        $fecha_emision = date('d/m/Y');
-        
-        // Plantilla HTML (Idéntica a tu diseño web)
-        $mensajeHTML = "
-        <div style='font-family: monospace, sans-serif; max-width: 600px; border: 1px solid #ddd; padding: 20px; background-color: #fff; margin: auto;'>
-            <div style='text-align: center; margin-bottom: 20px;'>
-                <h2 style='margin: 0; font-size: 24px; font-weight: bold;'>Hotel Fiorella</h2>
-                <p style='margin: 5px 0;'>Av Paracas mz a lote 4, Paracas</p>
-                <p style='margin: 5px 0;'>RUC: 20325065266</p>
-            </div>
-            <hr style='border: 0; border-top: 1px solid #ccc;'>
-            <div style='text-align: center; margin: 20px 0;'>
-                <h3 style='margin: 0;'>$titulo_doc</h3>
-                <p style='margin: 10px 0; font-weight: bold; font-size: 18px;'>$serie - N° $numero_comprobante</p>
-            </div>
-            <hr style='border: 0; border-top: 1px solid #ccc;'>
-            <div style='margin: 20px 0; font-size: 14px; line-height: 1.6;'>
-                <strong>Fecha:</strong> $fecha_emision<br>
-                <strong>Cliente:</strong> {$info_cliente['Nombre']}<br>
-                <strong>DOC:</strong> {$info_cliente['Documento']}<br>
-                <strong>Dirección:</strong> {$info_cliente['Direccion']}
-            </div>
-            <table style='width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px;'>
-                <thead>
-                    <tr style='background-color: #f2f2f2;'>
-                        <th style='border: 1px solid #ddd; padding: 8px;'>Cant.</th>
-                        <th style='border: 1px solid #ddd; padding: 8px;'>Descripción</th>
-                        <th style='border: 1px solid #ddd; padding: 8px;'>Importe</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style='border: 1px solid #ddd; padding: 8px;'>$dias</td>
-                        <td style='border: 1px solid #ddd; padding: 8px;'>
-                            Alojamiento - {$datos_hab['N_TipoHabitacion']} (#{$datos_hab['NumeroHabitacion']})<br>
-                            <small>Del $fecha_entrada al $fecha_salida</small>
-                        </td>
-                        <td style='border: 1px solid #ddd; padding: 8px; text-align: right;'>S/ ".number_format($total, 2)."</td>
-                    </tr>
-                </tbody>
-            </table>
-            <div style='text-align: right; margin-top: 20px;'>
-                <h3 style='margin: 0;'>TOTAL: S/ ".number_format($total, 2)."</h3>
-            </div>
-        </div>
-        ";
+        $pdo->prepare("INSERT INTO $tabla (ReservaID, Numero, Serie, Estado) VALUES (?, ?, ?, '1')")->execute([$reserva_id, $numero, $serie]);
 
-        // Lógica de Envío: Si tiene correo -> Cliente + Copia Admin. Si no -> Solo Admin.
-        if (!empty($info_cliente['Correo'])) {
-            enviarNotificacion($info_cliente['Correo'], $info_cliente['Nombre'], "Reserva Confirmada #$reserva_id", $mensajeHTML);
-        } else {
-            // PON AQUÍ TU CORREO DE ADMIN PARA RECIBIR LA ALERTA
-            enviarNotificacion('brayan.mh1087@gmail.com', 'Admin', "NUEVA RESERVA #$reserva_id (Cliente sin email)", $mensajeHTML);
+        $pdo->commit();
+
+        // 5. NOTIFICACIÓN (Llamamos al gestor)
+        // Usamos try/catch para que si falla el correo, la reserva siga siendo válida
+        try {
+            notificarReservaCreada($pdo, $reserva_id);
+        } catch (Exception $e) {
+            error_log("Error en notificación: " . $e->getMessage());
         }
 
-        // ==========================================================
-        
+        // Redirigir al recibo
         header('Location: admin/generar_recibo.php?id=' . $reserva_id);
         exit();
 
-    } catch (PDOException $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        header('Location: reservar.php?error=' . urlencode('Error al procesar: ' . $e->getMessage()));
-        exit();
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) { $pdo->rollBack(); }
+        die("Error procesando la reserva: " . $e->getMessage());
     }
 }
 
-// --- LÓGICA VISUAL (Esto no cambia) ---
+// =========================================================
+// VISTA HTML (Se muestra cuando vienes de seleccionar método)
+// =========================================================
+
+// Recibir datos del paso anterior (reservar.php)
 $habitacion_id = $_POST['habitacion_id'] ?? null;
 $fecha_entrada = $_POST['fecha_entrada'] ?? null;
 $fecha_salida = $_POST['fecha_salida'] ?? null;
 $metodo_pago_id = $_POST['metodo_pago_id'] ?? null;
 
-if (!$habitacion_id) { die("Error: Faltan datos."); }
+if (!$habitacion_id) { 
+    // Si intentan entrar directo sin datos, mandar al inicio
+    header('Location: index.php'); exit(); 
+}
+
 include('includes/header_public.php');
 ?>
-<style>
-    .payment-container { display: flex; justify-content: center; padding: 40px 0; }
-    .payment-box { padding: 30px; background: #fff; box-shadow: 0 0 15px rgba(0,0,0,0.1); border-radius: 8px; width: 600px; text-align: center; }
-    .payment-instruction img { max-width: 300px; margin: 20px 0; }
-</style>
 
-<div class="payment-container">
-    <div class="payment-box">
-        <h2>Instrucciones de Pago</h2>
-        <div class="payment-instruction">
-            <?php
-            switch ($metodo_pago_id) {
-                case '1': echo '<p>Escanee el siguiente código para pagar con Yape:</p><img src="img/yape.jpg" alt="Código QR de Yape">'; break;
-                case '2': echo '<p>Escanee el siguiente código para pagar con Plin:</p><img src="img/plin.jpg" alt="Código QR de Plin">'; break;
-                case '3': echo '<h3>Pago en Recepción</h3><p>Por favor, acérquese a la recepción del hotel para completar el pago.</p>'; break;
-            }
-            ?>
+<div class="container" style="margin-top: 50px; margin-bottom: 50px;">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-0 rounded-lg">
+                <div class="card-header bg-success text-white text-center py-3">
+                    <h3 class="mb-0"><i class="fas fa-money-bill-wave mr-2"></i>Finalizar Pago</h3>
+                </div>
+                <div class="card-body p-5 text-center">
+                    
+                    <h5 class="mb-4 font-weight-bold text-secondary">Instrucciones para completar su reserva</h5>
+                    
+                    <div class="payment-instruction mb-5 p-4 bg-light rounded">
+                        <?php if ($metodo_pago_id == '1'): ?>
+                            <p class="lead mb-3">Escanee el siguiente código para pagar con <strong>Yape</strong>:</p>
+                            <img src="img/yape.jpg" alt="Código QR de Yape" class="img-fluid rounded shadow-sm" style="max-width: 250px; border: 2px solid #28a745;">
+                            <p class="mt-3 text-muted"><small>Envíe el comprobante al WhatsApp del hotel.</small></p>
+                        
+                        <?php elseif ($metodo_pago_id == '2'): ?>
+                            <p class="lead mb-3">Escanee el siguiente código para pagar con <strong>Plin</strong>:</p>
+                            <img src="img/plin.jpg" alt="Código QR de Plin" class="img-fluid rounded shadow-sm" style="max-width: 250px; border: 2px solid #007bff;">
+                             <p class="mt-3 text-muted"><small>Envíe el comprobante al WhatsApp del hotel.</small></p>
+
+                        <?php else: ?>
+                            <div class="alert alert-info shadow-sm">
+                                <h4 class="alert-heading"><i class="fas fa-concierge-bell mr-2"></i>Pago en Recepción</h4>
+                                <p class="mb-0">Por favor, acérquese a la recepción del hotel para realizar el pago y confirmar su estadía.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <form action="pago.php" method="POST">
+                        <input type="hidden" name="habitacion_id" value="<?php echo htmlspecialchars($habitacion_id); ?>">
+                        <input type="hidden" name="fecha_entrada" value="<?php echo htmlspecialchars($fecha_entrada); ?>">
+                        <input type="hidden" name="fecha_salida" value="<?php echo htmlspecialchars($fecha_salida); ?>">
+                        <input type="hidden" name="metodo_pago_id" value="<?php echo htmlspecialchars($metodo_pago_id); ?>">
+                        
+                        <input type="hidden" name="final_confirm" value="1">
+                        
+                        <button type="submit" class="btn btn-lg btn-block btn-success font-weight-bold py-3 shadow transition-hover">
+                            <i class="fas fa-check-circle mr-2"></i>Confirmar Pago y Generar Boleta
+                        </button>
+                    </form>
+                    </div>
+            </div>
+            <div class="text-center mt-3">
+                <a href="index.php" class="text-muted"><i class="fas fa-arrow-left mr-1"></i>Volver al inicio</a>
+            </div>
         </div>
-        
-        <form action="pago.php" method="POST">
-            <input type="hidden" name="habitacion_id" value="<?php echo htmlspecialchars($habitacion_id); ?>">
-            <input type="hidden" name="fecha_entrada" value="<?php echo htmlspecialchars($fecha_entrada); ?>">
-            <input type="hidden" name="fecha_salida" value="<?php echo htmlspecialchars($fecha_salida); ?>">
-            <input type="hidden" name="metodo_pago_id" value="<?php echo htmlspecialchars($metodo_pago_id); ?>">
-            <input type="hidden" name="final_confirm" value="1">
-            <button type="submit" class="btn btn-success" style="width:100%; margin-top:20px; padding: 12px;">Continuar</button>
-        </form>
     </div>
 </div>
 
-<?php include('includes/footer.php'); ?>
+<style>
+    .transition-hover:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+</style>

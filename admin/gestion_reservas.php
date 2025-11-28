@@ -92,7 +92,9 @@ $fecha_actual = new DateTime();
                     <td><?php if ($reserva['EstadoReserva'] == '0') { echo '<span style="color:red; font-weight:bold;">Cancelada</span>'; } elseif ($esta_vencida) { echo '<span style="color:grey;">Finalizada</span>'; } else { echo '<span style="color:green;">Confirmada</span>'; } ?></td>
                     <td style="display:flex; flex-direction:column; gap:5px; width:100px;">
                         <a href="ver_reserva.php?id=<?php echo $reserva['ReservaID']; ?>" class="btn btn-primary">Ver</a>
-                        <a href="generar_boleta_html.php?id=<?php echo $reserva['ReservaID']; ?>" class="btn btn-success" target="_blank">Boleta</a>
+                       <a href="generar_recibo.php?id=<?php echo $reserva['ReservaID']; ?>" class="btn btn-success" target="_blank">
+    <i class="fas fa-file-pdf"></i> Boleta PDF
+</a>
                         <?php if (!$esta_vencida && $reserva['EstadoReserva'] != '0'): ?>
                             <a href="admin_modificar_reserva.php?id=<?php echo $reserva['ReservaID']; ?>" class="btn btn-secondary">Modificar</a>
                             <a href="../actions/admin_cancelar_reserva.php?id=<?php echo $reserva['ReservaID']; ?>" class="btn btn-danger" onclick="return confirm('¿Está seguro de cancelar esta reserva?');">Cancelar</a>

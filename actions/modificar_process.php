@@ -1,13 +1,11 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 include('../includes/db.php');
-include('../includes/mailer.php'); // <--- INCLUIMOS EL MAILER
+// 1. INCLUIMOS EL NUEVO GESTOR (Ya no el mailer directo)
+include('../includes/gestor_notificaciones.php');
 
 if (!isset($_SESSION['usuario_id']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ../login.php');
-    exit();
+    header('Location: ../login.php'); exit();
 }
 
 $reserva_id = $_POST['reserva_id'];
@@ -23,7 +21,7 @@ if (strtotime($fecha_salida) <= strtotime($fecha_entrada)) {
 try {
     $pdo->beginTransaction();
 
-    // Verificamos reserva y obtenemos HabitacionID
+    // Validar propiedad de la reserva
     $stmt_check = $pdo->prepare("SELECT HabitacionID, ClienteID FROM Reservas WHERE ReservaID = ?");
     $stmt_check->execute([$reserva_id]);
     $reserva = $stmt_check->fetch();
@@ -32,12 +30,11 @@ try {
         throw new Exception("Acción no autorizada.");
     }
 
-    // Actualizamos Reserva
+    // Actualizar fechas
     $sql_update = "UPDATE Reservas SET FechaEntrada = ?, FechaSalida = ? WHERE ReservaID = ?";
-    $stmt_update = $pdo->prepare($sql_update);
-    $stmt_update->execute([$fecha_entrada, $fecha_salida, $reserva_id]);
+    $pdo->prepare($sql_update)->execute([$fecha_entrada, $fecha_salida, $reserva_id]);
 
-    // Recalculamos Total
+    // Recalcular total
     $stmt_precio = $pdo->prepare("SELECT PrecioPorNoche FROM Habitaciones WHERE HabitacionID = ?");
     $stmt_precio->execute([$reserva['HabitacionID']]);
     $precio_noche = $stmt_precio->fetchColumn();
@@ -46,39 +43,22 @@ try {
     $total_nuevo = $precio_noche * $dias;
 
     $sql_venta = "UPDATE Venta SET Total = ? WHERE ReservaID = ?";
-    $stmt_venta = $pdo->prepare($sql_venta);
-    $stmt_venta->execute([$total_nuevo, $reserva_id]);
-
-    // OBTENER EMAIL
-    $sql_cliente = "SELECT p.Correo, p.Nombres FROM Clientes c JOIN Persona p ON c.PersonaID = p.PersonaID WHERE c.ClienteID = ?";
-    $stmt_c = $pdo->prepare($sql_cliente);
-    $stmt_c->execute([$cliente_id_sesion]);
-    $d_cliente = $stmt_c->fetch();
+    $pdo->prepare($sql_venta)->execute([$total_nuevo, $reserva_id]);
 
     $pdo->commit();
 
-    // ENVIAR NOTIFICACIÓN
-    if ($d_cliente && !empty($d_cliente['Correo'])) {
-        $asunto = "Modificación de Reserva #$reserva_id - Hotel Fiorella";
-        $mensajeHTML = "
-        <h2>Sus fechas han cambiado</h2>
-        <p>Hola {$d_cliente['Nombres']}, se han actualizado los datos de su reserva:</p>
-        <ul>
-            <li><strong>Nueva Entrada:</strong> $fecha_entrada</li>
-            <li><strong>Nueva Salida:</strong> $fecha_salida</li>
-            <li><strong>Nuevo Total:</strong> S/ $total_nuevo</li>
-        </ul>
-        ";
-        enviarNotificacion($d_cliente['Correo'], $d_cliente['Nombres'], $asunto, $mensajeHTML);
+    // 2. USAMOS EL GESTOR PARA NOTIFICAR (Igual que en el admin)
+    try {
+        notificarReservaModificada($pdo, $reserva_id, $fecha_entrada, $fecha_salida, $total_nuevo);
+    } catch (Exception $e) { 
+        // Si falla el correo, no detenemos la redirección
     }
 
     header('Location: ../client/index.php?success=modify_ok');
     exit();
 
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
+    if ($pdo->inTransaction()) { $pdo->rollBack(); }
     header('Location: ../client/modificar_reserva.php?id=' . $reserva_id . '&error=' . urlencode($e->getMessage()));
     exit();
 }
