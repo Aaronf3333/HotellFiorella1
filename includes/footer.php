@@ -25,7 +25,7 @@
                 </li>
                 <li>
                     <span class="icon"><i class="fas fa-user"></i></span>
-                    <a href="integrante.php?id=jesus" class="team-member-link">Aaron Isai Fernandez de la Cruz</a>
+                    <a href="integrante.php?id=jesus" class="team-member-link">Aaron Isai Fernandez de la Cruz 1</a>
                     <img src="img/aaron.jpg" alt="Avatar Jesus" class="avatar">
                 </li>
                 <li class="instructor">
