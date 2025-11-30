@@ -53,14 +53,14 @@ Disfruto de los videojuegos y me fascina la ciencia aeroespacial; la curiosidad 
         'video_url' => 'https://www.youtube.com/embed/PcR8P1pG2pE?si=i2XaayUjZgrG_9uu'
     ],
     'jesus' => [
-        'nombres' => 'Jesus Alexander',
-        'apellidos' => 'Tenorio Gamonal',
-        'celular' => '946852085',
-        'correo' => 'jesus.tenorio@upsjb.edu.pe',
-        'codigo' => '78311746',
-        'imagen' => 'img/jesus.png',
+        'nombres' => 'Aaron Isai',
+        'apellidos' => 'Fernandez de la Cruz',
+        'celular' => '919137322',
+        'correo' => 'aaron.fernandez@upsjb.edu.pe',
+        'codigo' => '60907408',
+        'imagen' => 'img/aaron.jpg',
         'presentacion' => '',
-        'video_url' => 'https://www.youtube.com/embed/6CTD9QA45kw?si=6zg9hSDtj38ScD_Z'
+        'video_url' => 'https://www.youtube.com/embed/GTZXYEsvKvM?si=x176UiWnlPrFi1iD'
     ],
     'default' => [
         'nombres' => 'Integrante',
