@@ -1,26 +1,34 @@
 <?php
-
-
-
-include('includes/header_public.php');
 include('includes/db.php');
 
-// Verificamos si no hay una sesión de usuario activa
+// Verificamos e iniciamos la sesión si es necesario
+// (Si header_public.php NO tiene session_start, ponlo aquí)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// 1. Verificamos si no hay una sesión de usuario activa
+// ¡ESTA REDIRECCIÓN AHORA ES SEGURA!
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php?notice=login_required&redirect_to=reservar.php');
-    exit();
+    exit(); // Detenemos la ejecución después de redirigir
 }
+
+// 2. Lógica de negocio para el formulario (Si está logeado)
 
 // Obtenemos el nombre de la persona desde la BD
 try {
     $sql_nombre = "SELECT p.Nombres FROM Persona p JOIN Clientes c ON p.PersonaID = c.PersonaID WHERE c.ClienteID = ?";
     $stmt_nombre = $pdo->prepare($sql_nombre);
-    $stmt_nombre->execute([$_SESSION['cliente_id']]);
+    // Asegúrate de que $_SESSION['cliente_id'] se establezca correctamente en tu login
+    $stmt_nombre->execute([$_SESSION['cliente_id']]); 
     $resultado = $stmt_nombre->fetch(PDO::FETCH_ASSOC);
     $nombre_persona = $resultado ? $resultado['Nombres'] : 'Cliente';
     $_SESSION['nombre_persona'] = $nombre_persona;
 } catch (PDOException $e) {
     $nombre_persona = 'Cliente';
+    // Opcional: Manejo de error de base de datos
+    // error_log("Error al obtener nombre de cliente: " . $e->getMessage()); 
 }
 
 // Cargamos datos para los menús desplegables
@@ -31,8 +39,11 @@ $habitaciones_disponibles = $stmt_hab->fetchAll(PDO::FETCH_ASSOC);
 $metodos_pago_sql = "SELECT MetodoPagoID, NombreMetodo FROM MetodosPago WHERE Estado = '1'";
 $stmt_mp = $pdo->query($metodos_pago_sql);
 $metodos_pago = $stmt_mp->fetchAll(PDO::FETCH_ASSOC);
-?>
 
+
+// 3. Incluimos el encabezado HTML, ya que el control de sesión pasó
+include('includes/header_public.php');
+?>
 <style>
     .form-container { display: flex; justify-content: center; padding: 40px 0; }
     .form-box { padding: 30px; background: #fff; box-shadow: 0 0 15px rgba(0,0,0,0.1); border-radius: 8px; width: 600px; }
@@ -66,7 +77,7 @@ $metodos_pago = $stmt_mp->fetchAll(PDO::FETCH_ASSOC);
                 <label for="metodo_pago_id">Método de Pago:</label>
                 <select name="metodo_pago_id" id="metodo_pago_id" required>
                      <?php foreach($metodos_pago as $mp): ?>
-                        <option value="<?php echo $mp['MetodoPagoID']; ?>"><?php echo htmlspecialchars($mp['NombreMetodo']); ?></option>
+                         <option value="<?php echo $mp['MetodoPagoID']; ?>"><?php echo htmlspecialchars($mp['NombreMetodo']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
