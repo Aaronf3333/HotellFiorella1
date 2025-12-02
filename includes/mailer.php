@@ -10,23 +10,25 @@ function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF 
     $mail = new PHPMailer(true);
 
     try {
-        // --- 🔒 LECTURA DE VARIABLES DE ENTORNO ---
-        // Usamos getenv() para obtener los valores seguros de Render.
+        // --- LECTURA DE VARIABLES DE ENTORNO ---
+        // (El valor por defecto es ahora 465, que coincide con el cifrado SMTPS)
         $SMTP_HOST = getenv('SMTP_HOST') ?: 'smtp.gmail.com'; 
         $SMTP_USER = getenv('SMTP_USER') ?: 'brayan.mh1087@gmail.com'; 
-        // Eliminamos los espacios de la contraseña por si acaso
         $SMTP_PASSWORD = str_replace(' ', '', getenv('SMTP_PASSWORD') ?: 'dcmcalymlyuzzici'); 
-        $SMTP_PORT = getenv('SMTP_PORT') ?: 587; 
+        $SMTP_PORT = getenv('SMTP_PORT') ?: 465; // CAMBIO AQUÍ: Valor por defecto a 465
         
         $mail->isSMTP();
-        // ASIGNACIÓN USANDO VARIABLES DE ENTORNO
         $mail->Host       = $SMTP_HOST;
         $mail->SMTPAuth   = true;
         $mail->Username   = $SMTP_USER;
         $mail->Password   = $SMTP_PASSWORD;
-        // La configuración de seguridad se mantiene para 587
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        
+        // ** CAMBIO CLAVE 1: Configuración SMTPS para Puerto 465 **
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Usamos SMTPS (SSL)
         $mail->Port       = $SMTP_PORT;
+
+        // ** CAMBIO CLAVE 2: Tiempo de Espera (Timeout) **
+        $mail->Timeout = 10; // Falla más rápido (10 segundos) si no puede conectar
 
         // El resto del código usa la variable leída
         $mail->setFrom($SMTP_USER, 'Hotel Fiorella'); 
@@ -48,8 +50,8 @@ function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF 
         $mail->send();
         return true;
     } catch (Exception $e) {
-        // Es crucial registrar el error para diagnosticar problemas
-        error_log("Mailer Error: " . $mail->ErrorInfo);
+        // Esto registrará el error específico en los logs de Render
+        error_log("Mailer Error: " . $mail->ErrorInfo); 
         return false;
     }
 }
