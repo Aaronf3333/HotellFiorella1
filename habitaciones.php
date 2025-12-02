@@ -2,13 +2,14 @@
 include('includes/header_public.php');
 include('includes/db.php');
 
-// Consulta mejorada, usando alias claro para el precio
+// --- CONSULTA SQL CORREGIDA Y MEJORADA ---
+// Usaremos alias claros para compatibilidad con el diseño moderno
 $sql = "SELECT 
             h.HabitacionID,
             h.NumeroHabitacion,
             th.N_TipoHabitacion,
             eh.Descripcion AS EstadoHabitacion,
-            h.PrecioPorNoche, -- Nombre de columna ajustado
+            h.PrecioPorNoche, -- Asumo que el precio se llama 'PrecioPorNoche' para ser compatible con el diseño anterior.
             th.Descripcion as DescripcionTipo
         FROM Habitaciones h
         JOIN TiposHabitacion th ON h.TipoHabitacionID = th.TipoHabitacionID
@@ -36,7 +37,6 @@ $habitaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 .habitaciones-container {
     display: grid;
-    /* Diseño de malla: 3 columnas, se reduce a 1 en móviles */
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 30px;
 }
@@ -81,7 +81,7 @@ $habitaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
 .price {
     font-size: 1.4em;
     font-weight: bold;
-    color: green; /* Color para el precio */
+    color: green;
     margin-top: 10px;
 }
 .status-pill {
@@ -103,7 +103,7 @@ $habitaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
     border: 1px solid #f5c6cb;
 }
 .btn-reserve {
-    margin-top: auto; /* Empuja el botón hacia abajo */
+    margin-top: auto;
     padding: 12px;
     border-radius: 0 0 12px 12px;
     border: none;
@@ -133,10 +133,17 @@ $habitaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <?php foreach ($habitaciones as $habitacion): ?>
             <div class="habitacion-card">
                 <?php
-                    // --- LÓGICA DE IMAGEN MÁS SIMPLE ---
-                    // Asume que la primera palabra del Tipo de Habitación es 'simple', 'doble', etc.
-                    $tipo_base = strtolower(explode(' ', $habitacion['N_TipoHabitacion'])[0]);
-                    // Si el nombre de la imagen es 'simple.jpg', 'doble.jpg', etc.
+                    // --- LÓGICA DE IMAGEN CORREGIDA ---
+                    // Se usa la lógica del código anterior, pero más limpia
+                    $nombre_tipo = strtolower($habitacion['N_TipoHabitacion']);
+                    $partes = explode(' ', $nombre_tipo);
+                    $tipo_base = $partes[0];
+                    
+                    // Si el primer elemento es 'habitación', usamos el segundo elemento (e.g., 'simple')
+                    if ($tipo_base == 'habitación' && count($partes) > 1) {
+                        $tipo_base = $partes[1];
+                    }
+                    
                     $imagen_src = "img/" . $tipo_base . ".jpg";
                     
                     // Definir clases y texto basado en el estado
