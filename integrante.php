@@ -60,7 +60,7 @@ Disfruto de los videojuegos y me fascina la ciencia aeroespacial; la curiosidad 
         'codigo' => '60907408',
         'imagen' => 'img/aaron.jpg',
         'presentacion' => '',
-        'video_url' => 'https://www.youtube.com/embed/GTZXYEsvKvM?si=x176UiWnlPrFi1iD'
+        'video_url' => 'https://www.youtube.com/embed/qNw8ejrI0nM'
     ],
     'default' => [
         'nombres' => 'Integrante',
