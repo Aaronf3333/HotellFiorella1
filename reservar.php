@@ -12,7 +12,7 @@ if (!isset($_SESSION['usuario_id'])) {
 }
 
 // ===================================================
-// 🛑 LÓGICA DE VALIDACIÓN (PHP) ANTES DE REDIRIGIR A PAGO
+// 🛑 LÓGICA DE VALIDACIÓN (PHP) ANTES DE REDIRIGIR A PAGO (SE MANTIENE IGUAL)
 // ===================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fecha_entrada = $_POST['fecha_entrada'] ?? null;
@@ -21,21 +21,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($fecha_entrada && $fecha_salida) {
         try {
-            // Conversión y validación de fechas
             $f_ingreso = new DateTime($fecha_entrada);
             $f_salida = new DateTime($fecha_salida);
             $hoy = new DateTime('today');
 
-            // Clonamos para la comparación de fechas sin hora
             $f_salida_sin_hora = clone $f_salida;
             $f_salida_sin_hora->setTime(0, 0, 0); 
 
-            // 1. Validar Fechas Pasadas (Fecha de Salida)
+            // 1. Validar Fechas Pasadas
             if ($f_salida_sin_hora < $hoy) {
                 $error_message = "❌ La fecha de salida no puede ser anterior al día de hoy.";
             }
 
-            // 2. Validar Duración Mínima (Salida debe ser al menos 1 día después del Ingreso)
+            // 2. Validar Duración Mínima
             $f_ingreso_mas_un_dia = clone $f_ingreso;
             $f_ingreso_mas_un_dia->modify('+1 day');
 
@@ -51,23 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($error_message) {
-        // Guardamos el error en sesión para mostrar el "toast"
         $_SESSION['toast_error'] = $error_message;
-        // La ejecución continúa para mostrar el formulario con el error
-    } else {
-        // Si todo es válido, enviamos el POST a pago.php
-        // Usaremos una redirección simple ya que pago.php espera los datos POST
-        // Dado que la validación pasó, permitimos que el formulario se envíe con los datos POST
-        // Puedes redirigir a una página intermedia o simplemente dejar que el formulario se envíe a "pago.php"
-        // En este caso, haremos que el formulario continúe su acción original (action="pago.php")
-    }
+    } 
 }
 // ===================================================
 // 🟢 FIN DE LA VALIDACIÓN PHP 🟢
 // ===================================================
 
 
-// Obtenemos el nombre de la persona desde la BD
+// Obtenemos el nombre de la persona y cargamos datos (SE MANTIENE IGUAL)
 try {
     $sql_nombre = "SELECT p.Nombres FROM Persona p JOIN Clientes c ON p.PersonaID = c.PersonaID WHERE c.ClienteID = ?";
     $stmt_nombre = $pdo->prepare($sql_nombre);
@@ -79,7 +69,6 @@ try {
     $nombre_persona = 'Cliente';
 }
 
-// Cargamos datos para los menús desplegables
 $habitaciones_sql = "SELECT h.HabitacionID, h.NumeroHabitacion, th.N_TipoHabitacion, h.PrecioPorNoche FROM Habitaciones h JOIN TiposHabitacion th ON h.TipoHabitacionID = th.TipoHabitacionID WHERE h.Estado_HabitacionID = 1";
 $stmt_hab = $pdo->query($habitaciones_sql);
 $habitaciones_disponibles = $stmt_hab->fetchAll(PDO::FETCH_ASSOC);
@@ -89,13 +78,66 @@ $stmt_mp = $pdo->query($metodos_pago_sql);
 $metodos_pago = $stmt_mp->fetchAll(PDO::FETCH_ASSOC);
 
 
-// 3. Incluimos el encabezado HTML, ya que el control de sesión pasó
+// 3. Incluimos el encabezado HTML
 include('includes/header_public.php');
 ?>
 <style>
+    /* Estilos del contenedor principal */
     .form-container { display: flex; justify-content: center; padding: 40px 0; }
-    .form-box { padding: 30px; background: #fff; box-shadow: 0 0 15px rgba(0,0,0,0.1); border-radius: 8px; width: 600px; }
-    .form-box h2 { text-align: center; color: var(--primary-color); margin-bottom: 25px; }
+    .form-box { padding: 40px; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.1); border-radius: 12px; width: 600px; max-width: 90%; }
+    .form-box h2 { 
+        text-align: center; 
+        color: var(--primary-color); 
+        margin-bottom: 30px; 
+        border-bottom: 2px solid var(--accent-color);
+        padding-bottom: 10px;
+    }
+    .form-box p {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #555;
+    }
+    
+    /* MEJORA DE LOS SELECTORES Y CAMPOS DE ENTRADA */
+    .form-group label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    .form-group input[type="date"],
+    .form-group select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-size: 1em;
+        box-sizing: border-box; /* Crucial para padding */
+        transition: border-color 0.3s, box-shadow 0.3s;
+        /* Estilo para parecerse a Bootstrap/campos modernos */
+        background-color: #f9f9f9;
+        -webkit-appearance: none; /* Quitar estilo nativo en Chrome/Safari */
+        -moz-appearance: none;    /* Quitar estilo nativo en Firefox */
+        appearance: none;
+    }
+    .form-group input[type="date"]:focus,
+    .form-group select:focus {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
+        outline: none;
+    }
+
+    /* MEJORA: Diseño de Fechas en dos columnas */
+    .date-group {
+        display: flex;
+        gap: 20px; /* Espacio entre los dos campos de fecha */
+        margin-bottom: 20px;
+    }
+    .date-group .form-group {
+        flex: 1; /* Ambos campos ocupan el mismo espacio */
+        margin-bottom: 0;
+    }
+
     /* Estilos base para el Toast */
     #app-toast {
         position: fixed;
@@ -115,32 +157,38 @@ include('includes/header_public.php');
 
 <div class="form-container">
     <div class="form-box">
-        <h2>Realizar una Reserva</h2>
-        <p>Estás reservando como: <strong><?php echo htmlspecialchars($nombre_persona); ?></strong></p>
+        <h2><i class="fas fa-calendar-alt"></i> Realizar una Reserva</h2>
+        <p>Estás reservando como: <span class="badge bg-primary text-white p-2"><strong><?php echo htmlspecialchars($nombre_persona); ?></strong></span></p>
         
         <form action="pago.php" method="POST">
+            
             <div class="form-group">
-                <label for="habitacion_id">Selecciona una Habitación:</label>
+                <label for="habitacion_id">🛌 Tipo de Habitación:</label>
                 <select name="habitacion_id" id="habitacion_id" required>
-                    <option value="">-- Habitaciones Disponibles --</option>
+                    <option value="">-- Selecciona una Opción --</option>
                     <?php foreach($habitaciones_disponibles as $hab): ?>
                         <option value="<?php echo $hab['HabitacionID']; ?>" <?php echo (isset($_POST['habitacion_id']) && $_POST['habitacion_id'] == $hab['HabitacionID']) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($hab['N_TipoHabitacion'] . " (#" . $hab['NumeroHabitacion'] . ") - S/ " . number_format($hab['PrecioPorNoche'], 2)); ?>
+                            <?php echo htmlspecialchars($hab['N_TipoHabitacion'] . " (#" . $hab['NumeroHabitacion'] . ") - S/ " . number_format($hab['PrecioPorNoche'], 2) . " / Noche"); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group">
-                <label for="fecha_entrada">Fecha de Entrada:</label>
-                <input type="date" id="fecha_entrada" name="fecha_entrada" required value="<?php echo htmlspecialchars($_POST['fecha_entrada'] ?? ''); ?>">
+            
+            <div class="date-group">
+                <div class="form-group">
+                    <label for="fecha_entrada">➡️ Fecha de Entrada:</label>
+                    <input type="date" id="fecha_entrada" name="fecha_entrada" required value="<?php echo htmlspecialchars($_POST['fecha_entrada'] ?? ''); ?>">
+                </div>
+                <div class="form-group">
+                    <label for="fecha_salida">⬅️ Fecha de Salida:</label>
+                    <input type="date" id="fecha_salida" name="fecha_salida" required value="<?php echo htmlspecialchars($_POST['fecha_salida'] ?? ''); ?>">
+                </div>
             </div>
+            
             <div class="form-group">
-                <label for="fecha_salida">Fecha de Salida:</label>
-                <input type="date" id="fecha_salida" name="fecha_salida" required value="<?php echo htmlspecialchars($_POST['fecha_salida'] ?? ''); ?>">
-            </div>
-             <div class="form-group">
-                <label for="metodo_pago_id">Método de Pago:</label>
+                <label for="metodo_pago_id">💳 Método de Pago:</label>
                 <select name="metodo_pago_id" id="metodo_pago_id" required>
+                     <option value="">-- Selecciona un Método --</option>
                      <?php foreach($metodos_pago as $mp): ?>
                          <option value="<?php echo $mp['MetodoPagoID']; ?>" <?php echo (isset($_POST['metodo_pago_id']) && $_POST['metodo_pago_id'] == $mp['MetodoPagoID']) ? 'selected' : ''; ?>>
                             <?php echo htmlspecialchars($mp['NombreMetodo']); ?>
@@ -149,7 +197,9 @@ include('includes/header_public.php');
                 </select>
             </div>
             
-            <button type="submit" class="btn btn-accent" style="width:100%; margin-top:20px; padding: 12px; font-size: 1.1em;">Confirmar Reserva</button>
+            <button type="submit" class="btn btn-accent" style="width:100%; margin-top:20px; padding: 14px; font-size: 1.2em; font-weight: bold;">
+                <i class="fas fa-arrow-circle-right"></i> Ir a Pago
+            </button>
         </form>
     </div>
 </div>
@@ -162,50 +212,40 @@ document.addEventListener('DOMContentLoaded', function() {
     const fechaSalida = document.getElementById('fecha_salida');
     
     // ----------------------------------------------------
-    // A. LÓGICA DE FECHAS EN EL CLIENTE
+    // A. LÓGICA DE FECHAS EN EL CLIENTE (Se mantiene igual)
     // ----------------------------------------------------
     
-    // 1. Establecer la fecha mínima de entrada a HOY
     const today = new Date();
-    // Ajuste para el offset de la zona horaria y obtener la fecha de hoy en formato AAAA-MM-DD
     const todayStr = today.toISOString().split('T')[0];
     fechaEntrada.setAttribute('min', todayStr);
 
-    // 2. Función para validar la duración y actualizar la fecha de salida
     function actualizarFechas() {
         if (!fechaEntrada.value) return;
 
-        // Crear objeto Date basado en el valor del campo
-        let fechaIn = new Date(fechaEntrada.value + 'T00:00:00'); // Añadir T00:00:00 para evitar problemas de zona horaria
+        let fechaIn = new Date(fechaEntrada.value + 'T00:00:00'); 
         let fechaMinimaSalida = new Date(fechaIn);
         
-        // La salida debe ser al menos el día siguiente (+1 día)
         fechaMinimaSalida.setDate(fechaIn.getDate() + 1); 
         
         const minSalidaStr = fechaMinimaSalida.toISOString().split('T')[0];
         
-        // Establecer el mínimo de la fecha de salida (para duración mínima)
         fechaSalida.setAttribute('min', minSalidaStr);
         
-        // Si la fecha de salida seleccionada es anterior a la nueva fecha mínima, la corrige automáticamente
         if (fechaSalida.value && fechaSalida.value < minSalidaStr) {
             fechaSalida.value = minSalidaStr;
         }
     }
 
-    // Ejecutar la función al cambiar las fechas
     fechaEntrada.addEventListener('change', actualizarFechas);
     
-    // Ejecutar al cargar la página si ya hay valores
     if (fechaEntrada.value) {
         actualizarFechas();
     }
     
     // ----------------------------------------------------
-    // B. LÓGICA DE TOASTS (para mostrar mensajes bonitos)
+    // B. LÓGICA DE TOASTS (Se mantiene igual)
     // ----------------------------------------------------
     
-    // Función para mostrar el Toast
     function showToast(message) {
         const toastId = 'app-toast';
         let toast = document.getElementById(toastId);
@@ -213,26 +253,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!toast) {
             toast = document.createElement('div');
             toast.id = toastId;
-            // Se añaden los estilos en la sección <style> arriba
             document.body.appendChild(toast);
         }
         
         toast.innerHTML = message;
-        // Mostrar el toast
         toast.style.opacity = '1';
         toast.style.transform = 'translateY(0)';
         
         setTimeout(() => {
-            // Ocultar el toast
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(100%)';
         }, 5000);
     }
     
-    // Manejar el error de PHP/Sesión si existe
     <?php if (isset($_SESSION['toast_error'])): ?>
         showToast("<?php echo htmlspecialchars($_SESSION['toast_error']); ?>");
-        <?php unset($_SESSION['toast_error']); // Borrar el mensaje después de mostrarlo ?>
+        <?php unset($_SESSION['toast_error']); ?>
     <?php endif; ?>
 });
 </script>
