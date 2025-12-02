@@ -10,12 +10,13 @@ function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF 
     $mail = new PHPMailer(true);
 
     try {
-        // --- LECTURA DE VARIABLES DE ENTORNO ---
-        // (El valor por defecto es ahora 465, que coincide con el cifrado SMTPS)
+        // --- 🔒 LECTURA DE VARIABLES DE ENTORNO ---
+        // El valor por defecto se ha actualizado a la nueva clave de aplicación: dhzbajotmlaghrni
         $SMTP_HOST = getenv('SMTP_HOST') ?: 'smtp.gmail.com'; 
         $SMTP_USER = getenv('SMTP_USER') ?: 'brayan.mh1087@gmail.com'; 
-        $SMTP_PASSWORD = str_replace(' ', '', getenv('SMTP_PASSWORD') ?: 'dcmcalymlyuzzici'); 
-        $SMTP_PORT = getenv('SMTP_PORT') ?: 465; // CAMBIO AQUÍ: Valor por defecto a 465
+        // ¡ACTUALIZACIÓN DE LA CONTRASEÑA POR DEFECTO!
+        $SMTP_PASSWORD = str_replace(' ', '', getenv('SMTP_PASSWORD') ?: 'dhzbajotmlaghrni'); 
+        $SMTP_PORT = getenv('SMTP_PORT') ?: 465; 
         
         $mail->isSMTP();
         $mail->Host       = $SMTP_HOST;
@@ -23,12 +24,12 @@ function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF 
         $mail->Username   = $SMTP_USER;
         $mail->Password   = $SMTP_PASSWORD;
         
-        // ** CAMBIO CLAVE 1: Configuración SMTPS para Puerto 465 **
+        // ** Configuración SMTPS para Puerto 465 **
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Usamos SMTPS (SSL)
         $mail->Port       = $SMTP_PORT;
 
-        // ** CAMBIO CLAVE 2: Tiempo de Espera (Timeout) **
-        $mail->Timeout = 10; // Falla más rápido (10 segundos) si no puede conectar
+        // ** Tiempo de Espera (Timeout) **
+        $mail->Timeout = 10; // Falla más rápido (10 segundos)
 
         // El resto del código usa la variable leída
         $mail->setFrom($SMTP_USER, 'Hotel Fiorella'); 
