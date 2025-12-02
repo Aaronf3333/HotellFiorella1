@@ -10,19 +10,29 @@ function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF 
     $mail = new PHPMailer(true);
 
     try {
+        // --- 🔒 LECTURA DE VARIABLES DE ENTORNO ---
+        // Usamos getenv() para obtener los valores seguros de Render.
+        $SMTP_HOST = getenv('SMTP_HOST') ?: 'smtp.gmail.com'; 
+        $SMTP_USER = getenv('SMTP_USER') ?: 'brayan.mh1087@gmail.com'; 
+        // Eliminamos los espacios de la contraseña por si acaso
+        $SMTP_PASSWORD = str_replace(' ', '', getenv('SMTP_PASSWORD') ?: 'dcmcalymlyuzzici'); 
+        $SMTP_PORT = getenv('SMTP_PORT') ?: 587; 
+        
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
+        // ASIGNACIÓN USANDO VARIABLES DE ENTORNO
+        $mail->Host       = $SMTP_HOST;
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'brayan.mh1087@gmail.com'; 
-        $mail->Password   = 'dcmc alym lyuz zici';     
+        $mail->Username   = $SMTP_USER;
+        $mail->Password   = $SMTP_PASSWORD;
+        // La configuración de seguridad se mantiene para 587
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+        $mail->Port       = $SMTP_PORT;
 
-        $mail->setFrom('brayan.mh1087@gmail.com', 'Hotel Fiorella'); 
+        // El resto del código usa la variable leída
+        $mail->setFrom($SMTP_USER, 'Hotel Fiorella'); 
         $mail->addAddress($destinatario, $nombre);
         
-        // --- AQUÍ EL CAMBIO PARA QUE TE LLEGUE A TI ---
-        // Usamos el alias +admin o tu correo de hotmail
+        // --- Notificación al personal ---
         $mail->addBCC('hotelfiorella@hotmail.com');
 
         if ($adjuntoPDF !== null) {
@@ -38,6 +48,7 @@ function enviarCorreo($destinatario, $nombre, $asunto, $cuerpoHTML, $adjuntoPDF 
         $mail->send();
         return true;
     } catch (Exception $e) {
+        // Es crucial registrar el error para diagnosticar problemas
         error_log("Mailer Error: " . $mail->ErrorInfo);
         return false;
     }
